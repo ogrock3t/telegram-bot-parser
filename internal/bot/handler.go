@@ -17,15 +17,16 @@ func Run(token string) {
 	log.Printf("Bot %s started", botAPI.Self.UserName)
 
 	u := tgbotapi.NewUpdate(0)
-	u.Timeout = 60
+	u.Timeout = 20
 	updates := botAPI.GetUpdatesChan(u)
 
 	for update := range updates {
-		if update.Message == nil {
-			continue
+		if update.Message != nil {
+			handleMessage(botAPI, update.Message)
+		} else if update.CallbackQuery != nil {
+			handleCallback(botAPI, update.CallbackQuery)
 		}
 
-		handleMessage(botAPI, update.Message)
 	}
 }
 
@@ -37,14 +38,36 @@ func handleMessage(botAPI *tgbotapi.BotAPI, msg *tgbotapi.Message) {
 	case "/start":
 		reply.Text = generateWelcomeMessage(msg.From.FirstName)
 	case "/help":
-		reply.Text = "Select the ruble exchange rate to:"
-		reply.ReplyMarkup = generateHelpKeyboard()
+		reply.Text = "..."
+	case "/play", "/game":
+		reply.Text = "Choose any games:"
+		reply.ReplyMarkup = generateHelpKeyboardForTruthOrDate()
 	default:
 		reply.Text = "..."
 	}
 
 	if _, err := botAPI.Send(reply); err != nil {
 		log.Println("Error sending reply: ", err)
+	}
+}
+
+func handleCallback(botAPI *tgbotapi.BotAPI, callback *tgbotapi.CallbackQuery) {
+	msg := tgbotapi.NewMessage(callback.Message.Chat.ID, "")
+
+	switch callback.Data {
+	case "game_truth_or_dare":
+		msg.Text = "You selected Truth or Dare!\n\n"
+	default:
+		msg.Text = "Unknown game selection"
+	}
+
+	if _, err := botAPI.Send(msg); err != nil {
+		log.Println("Error sending callback reply: ", err)
+	}
+
+	callbackConfig := tgbotapi.NewCallback(callback.ID, "")
+	if _, err := botAPI.Request(callbackConfig); err != nil {
+		log.Println("Error answering callback: ", err)
 	}
 }
 
@@ -56,14 +79,10 @@ func generateWelcomeMessage(userName string) string {
 	return fmt.Sprintf("Welcome, %s!\nThis bot provides real-time exchange rate monitoring.\n\nAuthor: github.com/ogrock3t", userName)
 }
 
-func generateHelpKeyboard() tgbotapi.InlineKeyboardMarkup {
+func generateHelpKeyboardForTruthOrDate() tgbotapi.InlineKeyboardMarkup {
 	return tgbotapi.NewInlineKeyboardMarkup(
 		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("USD", "currency_usd"),
-			tgbotapi.NewInlineKeyboardButtonData("EUR", "currency_eur"),
-		),
-		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("BTC", "currency_btc"),
+			tgbotapi.NewInlineKeyboardButtonData("Truth or Dare", "game_truth_or_dare"),
 		),
 	)
 }
